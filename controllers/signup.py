@@ -1,6 +1,6 @@
-from models.main import Model
+from models.init_model import Model
 from models.auth import User
-from views.main import View
+from views.init_view import View
 
 
 class SignUpController:
@@ -29,7 +29,6 @@ class SignUpController:
         user: User = {"username": data["username"]}
         self.model.auth.login(user)
         self.clear_form()
-        
     
     def clear_form(self) -> None:
         fullname = self.frame.fullname_input.get()

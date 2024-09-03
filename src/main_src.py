@@ -1,6 +1,6 @@
-from models.init_model import Model
-from views.init_view import View
-from controllers.init_controller import Controller
+from src.models import Model
+from src.views import View
+from src.controllers import Controller
 
 
 def main():

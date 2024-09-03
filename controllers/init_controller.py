@@ -1,6 +1,6 @@
-from models.main import Model
+from models.init_model import Model
 from models.auth import Auth
-from views.main import View
+from views.init_view import View
 
 from .home import HomeController
 from .signin import SignInController
