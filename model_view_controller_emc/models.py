@@ -3,6 +3,7 @@ import threading
 import time
 from pubsub import pub
 
+
 class Tab1Model:
     def __init__(self):
         self.abort_flag = threading.Event()
