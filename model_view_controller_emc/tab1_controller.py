@@ -1,14 +1,14 @@
 # tab1_controller.py
 from pubsub import pub
 from models import Tab1Model
-from tab1_view import Tab_1
+from tab1_view import Tab_1_View
 import threading
 
 
 class Tab_1_Controller:
     def __init__(self, parent):
         self.model = Tab1Model()
-        self.view = Tab_1(parent)
+        self.view = Tab_1_View(parent)
 
         # Bind view buttons to controller methods
         self.view.table_button.config(command=self.start_rotate_table)

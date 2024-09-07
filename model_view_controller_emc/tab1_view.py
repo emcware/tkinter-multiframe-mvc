@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 
 
-class Tab_1:
+class Tab_1_View:
     def __init__(self, parent):
         self.frame = ttk.Frame(parent)
 
