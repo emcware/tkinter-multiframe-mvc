@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 
+
 class FileTreeView:
     def __init__(self, root):
         self.root = root

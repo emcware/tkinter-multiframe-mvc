@@ -1,12 +1,16 @@
-import os
 import tkinter as tk
 from tkinter import ttk
+from pathlib import Path
 
 
 class FileTreeView:
-    def __init__(self, parent, folder_path, heading='Files'):
+    def __init__(self, parent, folder_path, heading='Files', on_selection_change=None, view_name=None):
         self.frame = ttk.Frame(parent)
         self.frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=10, pady=10)
+
+        self.base_folder = Path(folder_path)  # Store the base folder path
+        self.on_selection_change = on_selection_change  # Callback for selection change
+        self.view_name = view_name  # Identifier for the view
 
         # Treeview for displaying files with custom heading
         self.tree = ttk.Treeview(self.frame, selectmode='none')  # Disable extended selection
@@ -26,25 +30,23 @@ class FileTreeView:
         self.tree.heading('#0', text=heading, anchor='w')
 
         # Load the folder
-        self.load_folder(folder_path)
+        self.load_folder(self.base_folder)
 
-    def load_folder(self, folder_path):
-        """Load a folder into the tree view."""
+    def load_folder(self, folder_path: Path):
+        """Load the contents of the folder directly into the tree view, without showing the top-level folder."""
         self.tree.delete(*self.tree.get_children())
-        root_node = self.tree.insert('', 'end', text=folder_path, open=True)
-        self.populate_tree(root_node, folder_path)
+        self.populate_tree('', folder_path)
 
-    def populate_tree(self, parent, full_path):
+    def populate_tree(self, parent, folder_path: Path):
         """Populate tree with files and folders, hiding hidden files and sorting alphabetically."""
-        items = sorted(os.listdir(full_path))  # Sort the items alphabetically
+        items = sorted(folder_path.iterdir(), key=lambda p: p.name.lower())  # Sort alphabetically
         for item in items:
-            if item.startswith('.'):
+            if item.name.startswith('.'):
                 continue  # Skip hidden files
-            abs_path = os.path.join(full_path, item)
-            node_id = self.tree.insert(parent, 'end', text=item, open=False)
-            if os.path.isdir(abs_path):
+            node_id = self.tree.insert(parent, 'end', text=item.name, open=False)
+            if item.is_dir():
                 self.tree.insert(node_id, 'end')  # Placeholder for folder
-            elif abs_path in self.selected_files:
+            elif str(item) in self.selected_files:
                 self.tree.selection_add(node_id)  # Re-select previously selected files
 
     def open_node(self, event):
@@ -52,10 +54,12 @@ class FileTreeView:
         node_id = self.tree.focus()
         node_text = self.tree.item(node_id, 'text')
         parent_id = self.tree.parent(node_id)
-        parent_path = self.get_full_path(parent_id)
-        full_path = os.path.join(parent_path, node_text)
 
-        if os.path.isdir(full_path):
+        # Get the full path based on the current node and base folder
+        parent_path = self.get_full_path(parent_id)
+        full_path = Path(parent_path) / node_text
+
+        if full_path.is_dir():
             # Clear placeholder children
             if self.tree.get_children(node_id):
                 self.tree.delete(*self.tree.get_children(node_id))
@@ -66,26 +70,56 @@ class FileTreeView:
         """Handle click event for selecting and deselecting files."""
         item_id = self.tree.identify_row(event.y)
         if item_id:
-            full_path = self.get_full_path(item_id)
-            if os.path.isdir(full_path):
+            full_path = Path(self.get_full_path(item_id))
+            if full_path.is_dir():
                 # Folders can only be opened, not selected
                 return
 
-            if full_path in self.selected_files:
-                self.selected_files.remove(full_path)
+            if str(full_path) in self.selected_files:
+                self.selected_files.remove(str(full_path))
                 self.tree.selection_remove(item_id)
             else:
-                self.selected_files.add(full_path)
+                self.selected_files.add(str(full_path))
                 self.tree.selection_add(item_id)
 
+            # Trigger the callback if provided, pass view name for identification
+            if self.on_selection_change:
+                self.on_selection_change(self.view_name, self.get_selected_files())
+
     def get_full_path(self, node_id):
-        """Get full path of the selected node."""
+        """Get full path of the selected node relative to the base folder."""
         parts = []
         while node_id:
             node_text = self.tree.item(node_id, 'text')
             parts.insert(0, node_text)
             node_id = self.tree.parent(node_id)
-        return os.path.join(*parts)
+        return self.base_folder.joinpath(*parts)
+
+    def get_selected_files(self):
+        """Return the set of user-selected files."""
+        return list(self.selected_files)
+
+    def select_items(self, file_paths):
+        """Programmatically select specific files based on their paths."""
+        self.selected_files.clear()
+        self.tree.selection_remove(self.tree.selection())  # Clear previous selections
+
+        for file_path in file_paths:
+            # Get relative path to match nodes in the tree
+            relative_path = Path(file_path).relative_to(self.base_folder)
+
+            # Find and select the corresponding item in the tree
+            current_node = ''
+            for part in relative_path.parts:
+                for child in self.tree.get_children(current_node):
+                    if self.tree.item(child, 'text') == part:
+                        current_node = child
+                        break
+
+            # If a valid file was found, select it
+            if current_node:
+                self.selected_files.add(str(self.base_folder / relative_path))
+                self.tree.selection_add(current_node)
 
 
 # Main Application Window
@@ -116,10 +150,18 @@ class Application(tk.Tk):
         right_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
 
         # File view 1 (Link Files with custom heading)
-        self.link_files_view = FileTreeView(right_frame, '/Users/mikekriege/EMC/Factors', heading='Link Files')
+        self.link_files_view = FileTreeView(right_frame, '/Users/mikekriege/EMC/Factors', heading='Link Files',
+                                            on_selection_change=self.on_file_selection_change, view_name='Link Files')
 
         # File view 2 (Limits with custom heading)
-        self.limits_view = FileTreeView(right_frame, '/Users/mikekriege/EMC/Limits', heading='Limits')
+        self.limits_view = FileTreeView(right_frame, '/Users/mikekriege/EMC/Limits', heading='Limits',
+                                        on_selection_change=self.on_file_selection_change, view_name='Limits')
+
+    @staticmethod
+    def on_file_selection_change(self, view_name, selected_files):
+        """Handle file selection changes in FileTreeView."""
+        print(f"Selected files updated in {view_name}: {selected_files}")
+        # You can update your application state or save the selected files to a file
 
 
 # Run the application
